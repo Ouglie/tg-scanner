@@ -17,55 +17,52 @@
             margin: 0;
             padding: 20px;
         }
-        #reader {
-            width: 100%;
-            max-width: 400px;
-            margin-top: 20px;
-            border: none;
-        }
-        .hint {
-            text-align: center;
-            margin-top: 10px;
-            font-size: 14px;
-            opacity: 0.7;
-        }
+        #reader { width: 100%; max-width: 400px; margin-top: 20px; border: none; }
+        .hint { text-align: center; margin-top: 10px; font-size: 14px; opacity: 0.7; }
     </style>
 </head>
 <body>
 
-    <h2>Складской сканер</h2>
-    <div class="hint">Наведите камеру на штрихкод товара</div>
+    <h2 id="title">Сканер</h2>
+    <div class="hint" id="hint">Наведите камеру на штрихкод</div>
     
     <div id="reader"></div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Открываем на весь экран
+        tg.expand();
+
+        // 1. Получаем параметр 'cmd' из ссылки
+        const urlParams = new URLSearchParams(window.location.search);
+        const cmd = urlParams.get('cmd') || 'bc'; // по умолчанию bc, если ничего не передали
+
+        // 2. Настраиваем тексты в зависимости от нажатой кнопки
+        let commandPrefix = "";
+        if (cmd === 'bc') {
+            document.getElementById('title').innerText = "📦 Скан товара";
+            commandPrefix = "/bc ";
+        } else if (cmd === 'sn') {
+            document.getElementById('title').innerText = "🏷 Скан S/N";
+            commandPrefix = "/sn ";
+        } else if (cmd === 'cell') {
+            document.getElementById('title').innerText = "🗄 Скан ячейки";
+            commandPrefix = "/cell ";
+        }
 
         // Если сканирование успешно
         function onScanSuccess(decodedText, decodedResult) {
-            // Формируем команду для бота
-            let command = "/bc " + decodedText;
+            // Склеиваем префикс команды и штрихкод (например: "/sn 1234567")
+            let finalCommand = commandPrefix + decodedText;
             
-            // Отправляем текст в чат (сработает только при открытии через ReplyKeyboard)
-            tg.sendData(command);
-            
-            // Закрываем окно приложения
+            tg.sendData(finalCommand);
             tg.close();
         }
 
-        function onScanFailure(error) {
-            // Игнорируем ошибки при поиске ШК в кадре
-        }
+        function onScanFailure(error) {}
 
-        // Настройки сканера (ограничиваем зону поиска для удобства)
         let html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader",
-            { fps: 10, qrbox: { width: 250, height: 100 } },
-            false
+            "reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false
         );
-
-        // Запуск
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     </script>
 </body>
