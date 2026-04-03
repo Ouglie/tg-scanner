@@ -3,67 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сканер для 1С</title>
+    <title>WMS Терминал</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
+        /* Используем переменные темы Telegram для нативного вида */
         body {
-            font-family: sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-bg-color, #f4f4f5);
             color: var(--tg-theme-text-color, #000000);
+            margin: 0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin: 0;
-            padding: 20px;
         }
-        #reader { width: 100%; max-width: 400px; margin-top: 20px; border: none; }
-        .hint { text-align: center; margin-top: 10px; font-size: 14px; opacity: 0.7; }
+
+        h2 { margin-top: 0; font-weight: 600; text-align: center; }
+
+        /* Экран МЕНЮ */
+        #menu-screen { width: 100%; max-width: 400px; }
+        
+        /* Сетка для плиток */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Две колонки */
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        /* Дизайн плитки */
+        .tile {
+            background-color: var(--tg-theme-secondary-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            border-radius: 16px;
+            padding: 25px 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            user-select: none;
+        }
+        
+        .tile:active { transform: scale(0.95); } /* Эффект нажатия */
+        
+        .tile .icon { font-size: 32px; margin-bottom: 10px; display: block; }
+        .tile .title { font-size: 16px; font-weight: 500; }
+
+        /* Делаем кнопку "Ячейка" широкой на две колонки */
+        .tile.wide { grid-column: span 2; }
+
+        /* Экран СКАНЕРА (изначально скрыт) */
+        #scanner-screen {
+            display: none;
+            width: 100%;
+            max-width: 400px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; }
+
+        /* Кнопка "Назад" */
+        .back-btn {
+            background-color: var(--tg-theme-button-color, #3390ec);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            width: 100%;
+            cursor: pointer;
+        }
+        .back-btn:active { opacity: 0.8; }
+        
+        .hint { margin-top: 15px; font-size: 14px; opacity: 0.6; text-align: center; }
+
     </style>
 </head>
 <body>
 
-    <h2 id="title">Сканер</h2>
-    <div class="hint" id="hint">Наведите камеру на штрихкод</div>
-    
-    <div id="reader"></div>
+    <div id="menu-screen">
+        <h2>Терминал Сбора Данных</h2>
+        <div class="grid">
+            <div class="tile" onclick="startScanner('bc', '📦 Скан товара')">
+                <span class="icon">📦</span>
+                <span class="title">Товар</span>
+            </div>
+            <div class="tile" onclick="startScanner('sn', '🏷 Скан S/N')">
+                <span class="icon">🏷</span>
+                <span class="title">Серийник</span>
+            </div>
+            <div class="tile wide" onclick="startScanner('cell', '🗄 Скан ячейки')">
+                <span class="icon">🗄</span>
+                <span class="title">Ячейка</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="scanner-screen">
+        <button class="back-btn" onclick="stopScanner()">⬅️ Назад в меню</button>
+        <h2 id="scanner-title">Сканер</h2>
+        <div id="reader"></div>
+        <div class="hint">Наведите камеру на штрихкод</div>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand();
+        tg.expand(); // Разворачиваем приложение
 
-        // 1. Получаем параметр 'cmd' из ссылки
-        const urlParams = new URLSearchParams(window.location.search);
-        const cmd = urlParams.get('cmd') || 'bc'; // по умолчанию bc, если ничего не передали
+        let html5QrCode; 
+        let currentCommandPrefix = "";
 
-        // 2. Настраиваем тексты в зависимости от нажатой кнопки
-        let commandPrefix = "";
-        if (cmd === 'bc') {
-            document.getElementById('title').innerText = "📦 Скан товара";
-            commandPrefix = "/bc ";
-        } else if (cmd === 'sn') {
-            document.getElementById('title').innerText = "🏷 Скан S/N";
-            commandPrefix = "/sn ";
-        } else if (cmd === 'cell') {
-            document.getElementById('title').innerText = "🗄 Скан ячейки";
-            commandPrefix = "/cell ";
+        // ФУНКЦИЯ ЗАПУСКА СКАНЕРА
+        function startScanner(cmdType, titleText) {
+            // Прячем меню, показываем сканер
+            document.getElementById('menu-screen').style.display = 'none';
+            document.getElementById('scanner-screen').style.display = 'flex';
+            document.getElementById('scanner-title').innerText = titleText;
+
+            // Запоминаем, какую команду будем отправлять
+            currentCommandPrefix = "/" + cmdType + " ";
+
+            // Инициализируем сканер, если еще не создан
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            // Настройки камеры (fps - кадры, qrbox - зона фокуса)
+            const config = { fps: 10, qrbox: { width: 250, height: 100 } };
+
+            // Запуск камеры
+            html5QrCode.start(
+                { facingMode: "environment" }, // Задняя камера
+                config,
+                (decodedText) => {
+                    // УСПЕШНОЕ СКАНИРОВАНИЕ
+                    let finalCommand = currentCommandPrefix + decodedText;
+                    
+                    // Останавливаем камеру
+                    html5QrCode.stop().then(() => {
+                        // Отправляем команду в 1С
+                        tg.sendData(finalCommand);
+                        tg.close();
+                    });
+                },
+                (errorMessage) => {
+                    // Ошибки поиска кода в кадре игнорируем
+                }
+            ).catch((err) => {
+                alert("Ошибка доступа к камере: " + err);
+            });
         }
 
-        // Если сканирование успешно
-        function onScanSuccess(decodedText, decodedResult) {
-            // Склеиваем префикс команды и штрихкод (например: "/sn 1234567")
-            let finalCommand = commandPrefix + decodedText;
-            
-            tg.sendData(finalCommand);
-            tg.close();
+        // ФУНКЦИЯ ВОЗВРАТА В МЕНЮ (Кнопка Назад)
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    // Прячем сканер, показываем меню
+                    document.getElementById('scanner-screen').style.display = 'none';
+                    document.getElementById('menu-screen').style.display = 'block';
+                });
+            }
         }
-
-        function onScanFailure(error) {}
-
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false
-        );
-        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     </script>
 </body>
 </html>
