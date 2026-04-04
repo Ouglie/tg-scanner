@@ -84,6 +84,12 @@
 
         let currentCommandPrefix = "";
         let codeReader = null;
+        
+        // --- Переменные для защиты от ложных считываний ---
+        let lastScannedCode = "";
+        let matchCount = 0;
+        // Сколько раз код должен совпасть подряд, чтобы считаться верным
+        const REQUIRED_MATCHES = 2; 
 
         function startScanner(cmdType, titleText) {
             document.getElementById('menu-screen').style.display = 'none';
@@ -91,45 +97,58 @@
             document.getElementById('scanner-title').innerText = titleText;
             currentCommandPrefix = "/" + cmdType + " ";
 
-            // Ускоряем ZXing: жестко задаем форматы для поиска
+            // Сбрасываем счетчики проверок при новом запуске сканера
+            lastScannedCode = "";
+            matchCount = 0;
+
             const hints = new Map();
             const formats = [
                 ZXing.BarcodeFormat.QR_CODE, 
                 ZXing.BarcodeFormat.CODE_128, 
                 ZXing.BarcodeFormat.CODE_39,
-                ZXing.BarcodeFormat.EAN_13,
-                ZXing.BarcodeFormat.EAN_8// Добавили поддержку стандартных товарных штрихкодов
+                ZXing.BarcodeFormat.EAN_13
             ];
             hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
 
-            // Инициализируем ZXing
             codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
-            // Запускаем камеру
             codeReader.decodeFromConstraints(
                 { audio: false, video: { facingMode: "environment" } }, 
                 'video', 
                 (result, err) => {
                     if (result) {
-                        // Как только поймали код - формируем команду
-                        let finalCommand = currentCommandPrefix + result.text;
+                        let text = result.text;
                         
-                        // Останавливаем камеру
-                        stopScanner();
-                        
-                        // Отправляем в 1С и закрываем Mini App
-                        tg.sendData(finalCommand);
-                        tg.close();
+                        // Если отсканированный текст совпадает с предыдущим кадром
+                        if (text === lastScannedCode) {
+                            matchCount++; // Увеличиваем счетчик совпадений
+                            
+                            // Если набрали нужное количество совпадений подряд
+                            if (matchCount >= REQUIRED_MATCHES) {
+                                let finalCommand = currentCommandPrefix + text;
+                                
+                                // Останавливаем сканер и отправляем в 1С
+                                stopScanner();
+                                tg.sendData(finalCommand);
+                                tg.close();
+                            }
+                        } else {
+                            // Если код другой (или это первый кадр), 
+                            // запоминаем его и сбрасываем счетчик
+                            lastScannedCode = text;
+                            matchCount = 0;
+                        }
                     }
                 }
             ).catch(err => {
-                alert("Ошибка камеры: " + err);
+                // Ошибки выводим только в консоль, чтобы не пугать пользователя
+                console.log(err);
             });
         }
 
         function stopScanner() {
             if (codeReader) {
-                codeReader.reset(); // Выключаем использование камеры
+                codeReader.reset();
             }
             document.getElementById('scanner-screen').style.display = 'none';
             document.getElementById('menu-screen').style.display = 'block';
