@@ -16,9 +16,11 @@
         }
         h2 { margin-top: 0; font-weight: 600; text-align: center; }
         
-        /* Экран МЕНЮ */
-        #menu-screen { width: 100%; max-width: 400px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .screen { display: none; width: 100%; max-width: 400px; flex-direction: column; align-items: center; }
+        .screen.active { display: flex; } /* Класс для показа активного экрана */
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; width: 100%; }
+        
         .tile {
             background-color: var(--tg-theme-secondary-bg-color, #ffffff);
             color: var(--tg-theme-text-color, #000000);
@@ -29,18 +31,14 @@
         .tile:active { transform: scale(0.95); }
         .tile .icon { font-size: 32px; margin-bottom: 10px; display: block; }
         .tile .title { font-size: 16px; font-weight: 500; }
-        .tile.wide { grid-column: span 2; }
+        .tile.wide { grid-column: span 2; } /* Широкая кнопка на 2 колонки */
 
-        /* Экран СКАНЕРА */
-        #scanner-screen { display: none; width: 100%; max-width: 400px; flex-direction: column; align-items: center; }
+        /* Блок видео */
         #video-container { width: 100%; border-radius: 12px; overflow: hidden; position: relative; background: #000; }
         video { width: 100%; display: block; object-fit: cover; }
-        
-        /* Красная линия прицела */
         .laser {
             position: absolute; top: 50%; left: 10%; width: 80%; height: 2px;
-            background-color: red; box-shadow: 0 0 10px red; transform: translateY(-50%);
-            z-index: 2;
+            background-color: red; box-shadow: 0 0 10px red; transform: translateY(-50%); z-index: 2;
         }
 
         .back-btn {
@@ -50,12 +48,26 @@
             font-size: 16px; font-weight: 600; margin-bottom: 20px; width: 100%; cursor: pointer;
         }
         .back-btn:active { opacity: 0.8; }
+        .hint { margin-top: 15px; font-size: 14px; opacity: 0.6; text-align: center; }
     </style>
 </head>
 <body>
 
-    <div id="menu-screen">
-        <h2>Терминал Сбора Данных</h2>
+    <div id="main-menu-screen" class="screen active">
+        <h2>Главное меню</h2>
+        <div class="grid">
+            <div class="tile wide" onclick="startScanner('auth', '🔐 Авторизация')">
+                <span class="icon">🔐</span><span class="title">Авторизация по QR</span>
+            </div>
+            <div class="tile wide" onclick="showScreen('info-menu-screen')">
+                <span class="icon">ℹ️</span><span class="title">Информация по ШК</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="info-menu-screen" class="screen">
+        <button class="back-btn" onclick="showScreen('main-menu-screen')">⬅️ Назад в меню</button>
+        <h2>Информация по ШК</h2>
         <div class="grid">
             <div class="tile" onclick="startScanner('bc', '📦 Скан товара')">
                 <span class="icon">📦</span><span class="title">Товар</span>
@@ -69,13 +81,14 @@
         </div>
     </div>
 
-    <div id="scanner-screen">
-        <button class="back-btn" onclick="stopScanner()">⬅️ Назад в меню</button>
+    <div id="scanner-screen" class="screen">
+        <button class="back-btn" id="scanner-back-btn">⬅️ Отмена</button>
         <h2 id="scanner-title">Сканер</h2>
         <div id="video-container">
             <video id="video"></video>
             <div class="laser"></div>
         </div>
+        <div class="hint">Наведите камеру на код</div>
     </div>
 
     <script>
@@ -84,20 +97,30 @@
 
         let currentCommandPrefix = "";
         let codeReader = null;
-        
-        // --- Переменные для защиты от ложных считываний ---
         let lastScannedCode = "";
         let matchCount = 0;
-        // Сколько раз код должен совпасть подряд, чтобы считаться верным
         const REQUIRED_MATCHES = 2; 
 
-        function startScanner(cmdType, titleText) {
-            document.getElementById('menu-screen').style.display = 'none';
-            document.getElementById('scanner-screen').style.display = 'flex';
-            document.getElementById('scanner-title').innerText = titleText;
-            currentCommandPrefix = "/" + cmdType + " ";
+        // Функция переключения экранов
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
 
-            // Сбрасываем счетчики проверок при новом запуске сканера
+        // Кнопка "Назад" из сканера
+        document.getElementById('scanner-back-btn').addEventListener('click', () => {
+            stopScanner();
+            showScreen('main-menu-screen');
+        });
+
+        function startScanner(cmdType, titleText) {
+            showScreen('scanner-screen');
+            document.getElementById('scanner-title').innerText = titleText;
+            
+            // Если это авторизация, префикс не нужен, мы соберем команду руками.
+            // Иначе используем стандартные префиксы
+            currentCommandPrefix = (cmdType === 'auth') ? "" : "/" + cmdType + " ";
+
             lastScannedCode = "";
             matchCount = 0;
 
@@ -119,39 +142,47 @@
                     if (result) {
                         let text = result.text;
                         
-                        // Если отсканированный текст совпадает с предыдущим кадром
                         if (text === lastScannedCode) {
-                            matchCount++; // Увеличиваем счетчик совпадений
-                            
-                            // Если набрали нужное количество совпадений подряд
+                            matchCount++;
                             if (matchCount >= REQUIRED_MATCHES) {
-                                let finalCommand = currentCommandPrefix + text;
                                 
-                                // Останавливаем сканер и отправляем в 1С
+                                let finalCommand = "";
+                                
+                                // --- ЛОГИКА ДЛЯ АВТОРИЗАЦИИ (ПАРСИНГ DEEPLINK) ---
+                                if (cmdType === 'auth') {
+                                    let payload = text;
+                                    // Если в QR зашита ссылка t.me/.../?start=auth_123
+                                    if (text.includes('start=')) {
+                                        payload = text.split('start=')[1].split('&')[0];
+                                    } 
+                                    // Если там просто текст auth_123
+                                    else if (text.includes('auth_')) {
+                                        payload = text.substring(text.indexOf('auth_'));
+                                    }
+                                    finalCommand = "/start " + payload;
+                                } 
+                                // --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ШТРИХКОДОВ ---
+                                else {
+                                    finalCommand = currentCommandPrefix + text;
+                                }
+                                
                                 stopScanner();
                                 tg.sendData(finalCommand);
                                 tg.close();
                             }
                         } else {
-                            // Если код другой (или это первый кадр), 
-                            // запоминаем его и сбрасываем счетчик
                             lastScannedCode = text;
                             matchCount = 0;
                         }
                     }
                 }
-            ).catch(err => {
-                // Ошибки выводим только в консоль, чтобы не пугать пользователя
-                console.log(err);
-            });
+            ).catch(err => { console.log(err); });
         }
 
         function stopScanner() {
             if (codeReader) {
                 codeReader.reset();
             }
-            document.getElementById('scanner-screen').style.display = 'none';
-            document.getElementById('menu-screen').style.display = 'block';
         }
     </script>
 </body>
