@@ -63,4 +63,76 @@
             <div class="tile" onclick="startScanner('sn', '🏷 Скан S/N')">
                 <span class="icon">🏷</span><span class="title">Серийник</span>
             </div>
-            <div class="tile wide" onclick="startScanner('cell', '🗄 Скан ячейки
+            <div class="tile wide" onclick="startScanner('cell', '🗄 Скан ячейки')">
+                <span class="icon">🗄</span><span class="title">Ячейка</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="scanner-screen">
+        <button class="back-btn" onclick="stopScanner()">⬅️ Назад в меню</button>
+        <h2 id="scanner-title">Сканер</h2>
+        <div id="video-container">
+            <video id="video"></video>
+            <div class="laser"></div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        let currentCommandPrefix = "";
+        let codeReader = null;
+
+        function startScanner(cmdType, titleText) {
+            document.getElementById('menu-screen').style.display = 'none';
+            document.getElementById('scanner-screen').style.display = 'flex';
+            document.getElementById('scanner-title').innerText = titleText;
+            currentCommandPrefix = "/" + cmdType + " ";
+
+            // Ускоряем ZXing: жестко задаем форматы для поиска
+            const hints = new Map();
+            const formats = [
+                ZXing.BarcodeFormat.QR_CODE, 
+                ZXing.BarcodeFormat.CODE_128, 
+                ZXing.BarcodeFormat.CODE_39,
+                ZXing.BarcodeFormat.EAN_13 // Добавили поддержку стандартных товарных штрихкодов
+            ];
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+            // Инициализируем ZXing
+            codeReader = new ZXing.BrowserMultiFormatReader(hints);
+
+            // Запускаем камеру
+            codeReader.decodeFromConstraints(
+                { audio: false, video: { facingMode: "environment" } }, 
+                'video', 
+                (result, err) => {
+                    if (result) {
+                        // Как только поймали код - формируем команду
+                        let finalCommand = currentCommandPrefix + result.text;
+                        
+                        // Останавливаем камеру
+                        stopScanner();
+                        
+                        // Отправляем в 1С и закрываем Mini App
+                        tg.sendData(finalCommand);
+                        tg.close();
+                    }
+                }
+            ).catch(err => {
+                alert("Ошибка камеры: " + err);
+            });
+        }
+
+        function stopScanner() {
+            if (codeReader) {
+                codeReader.reset(); // Выключаем использование камеры
+            }
+            document.getElementById('scanner-screen').style.display = 'none';
+            document.getElementById('menu-screen').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
