@@ -17,7 +17,7 @@
         h2 { margin-top: 0; font-weight: 600; text-align: center; }
         
         .screen { display: none; width: 100%; max-width: 400px; flex-direction: column; align-items: center; }
-        .screen.active { display: flex; } /* Класс для показа активного экрана */
+        .screen.active { display: flex; }
 
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; width: 100%; }
         
@@ -31,9 +31,8 @@
         .tile:active { transform: scale(0.95); }
         .tile .icon { font-size: 32px; margin-bottom: 10px; display: block; }
         .tile .title { font-size: 16px; font-weight: 500; }
-        .tile.wide { grid-column: span 2; } /* Широкая кнопка на 2 колонки */
+        .tile.wide { grid-column: span 2; } 
 
-        /* Блок видео */
         #video-container { width: 100%; border-radius: 12px; overflow: hidden; position: relative; background: #000; }
         video { width: 100%; display: block; object-fit: cover; }
         .laser {
@@ -56,6 +55,9 @@
     <div id="main-menu-screen" class="screen active">
         <h2>Главное меню</h2>
         <div class="grid">
+            <div class="tile wide" onclick="startScanner('verifyZO', '🚚 Подтверждение отгрузки')">
+                <span class="icon">🚚</span><span class="title">Подтверждение отгрузки</span>
+            </div>
             <div class="tile wide" onclick="startScanner('auth', '🔐 Авторизация')">
                 <span class="icon">🔐</span><span class="title">Авторизация по QR</span>
             </div>
@@ -101,13 +103,12 @@
         let matchCount = 0;
         const REQUIRED_MATCHES = 2; 
 
-        // Функция переключения экранов
+        // Переключение экранов
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
         }
 
-        // Кнопка "Назад" из сканера
         document.getElementById('scanner-back-btn').addEventListener('click', () => {
             stopScanner();
             showScreen('main-menu-screen');
@@ -117,9 +118,13 @@
             showScreen('scanner-screen');
             document.getElementById('scanner-title').innerText = titleText;
             
-            // Если это авторизация, префикс не нужен, мы соберем команду руками.
-            // Иначе используем стандартные префиксы
-            currentCommandPrefix = (cmdType === 'auth') ? "" : "/" + cmdType + " ";
+            // Если это deeplink команды (auth или verifyZO), префикс не ставим, 
+            // мы добавим /start позже
+            if (cmdType === 'auth' || cmdType === 'verifyZO') {
+                currentCommandPrefix = "";
+            } else {
+                currentCommandPrefix = "/" + cmdType + " ";
+            }
 
             lastScannedCode = "";
             matchCount = 0;
@@ -148,20 +153,22 @@
                                 
                                 let finalCommand = "";
                                 
-                                // --- ЛОГИКА ДЛЯ АВТОРИЗАЦИИ (ПАРСИНГ DEEPLINK) ---
-                                if (cmdType === 'auth') {
+                                // --- ЛОГИКА ДЛЯ СЛОЖНЫХ QR-КОДОВ (DEEPLINKS) ---
+                                if (cmdType === 'auth' || cmdType === 'verifyZO') {
                                     let payload = text;
-                                    // Если в QR зашита ссылка t.me/.../?start=auth_123
+                                    
+                                    // Извлекаем нужную часть, если в QR зашита длинная ссылка t.me/.../?start=...
                                     if (text.includes('start=')) {
                                         payload = text.split('start=')[1].split('&')[0];
                                     } 
-                                    // Если там просто текст auth_123
-                                    else if (text.includes('auth_')) {
-                                        payload = text.substring(text.indexOf('auth_'));
+                                    // Страховка: если отсканировали чистый текст вида "verifyZO_12345"
+                                    else if (text.includes(cmdType + '_')) {
+                                        payload = text.substring(text.indexOf(cmdType + '_'));
                                     }
+                                    
                                     finalCommand = "/start " + payload;
                                 } 
-                                // --- ЛОГИКА ДЛЯ ОБЫЧНЫХ ШТРИХКОДОВ ---
+                                // --- ЛОГИКА ДЛЯ ПРОСТЫХ ТОВАРНЫХ ШТРИХКОДОВ ---
                                 else {
                                     finalCommand = currentCommandPrefix + text;
                                 }
