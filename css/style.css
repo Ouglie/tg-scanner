@@ -11,26 +11,26 @@ body {
 
 h2 { margin-top: 0; font-weight: 600; text-align: center; }
 
-/* ЭКРАН ХЕДЕРА С ЛОГОТИПОМ */
+/* ЭКРАН ХЕДЕРА С ТЕКСТОМ */
 .app-header {
     width: 100%;
     max-width: 400px;
     display: flex;
-    justify-content: center; /* Центрируем лого по горизонтали */
+    justify-content: center;
     align-items: center;
-    padding-bottom: 20px;
+    padding-bottom: 15px;
     margin-bottom: 20px;
-    border-bottom: 1px solid rgba(0,0,0,0.1); /* Легкая разделительная линия */
+    /* Разделительная линия: подстраивается под тему (полупрозрачный текст) */
+    border-bottom: 1px solid var(--tg-theme-hint-color, #ccc); 
 }
 
-.logo-container {
-    height: 40px; /* Фиксированная высота для лого */
-}
-
-.logo-image {
-    height: 100%; /* Картинка заполняет контейнер по высоте */
-    width: auto;  /* Ширина подстраивается пропорционально */
-    object-fit: contain; /* Картинка не искажается */
+.app-title {
+    font-size: 24px;
+    font-weight: 800; /* Делаем шрифт жирным и массивным */
+    margin: 0;
+    letter-spacing: 0.5px; /* Чуть раздвигаем буквы */
+    /* Цвет будет автоматически меняться в темной/светлой теме! */
+    color: var(--tg-theme-text-color, #000000); 
 }
 
 /* СТИЛИ ЭКРАНОВ И ПЛИТОК (БЕЗ ИЗМЕНЕНИЙ) */
