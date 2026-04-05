@@ -51,34 +51,39 @@ h2 { margin-top: 0; font-weight: 600; text-align: center; }
 .tile .title { font-size: 16px; font-weight: 500; }
 .tile.wide { grid-column: span 2; } 
 
+/* ИСПРАВЛЕННЫЙ КОНТЕЙНЕР КАМЕРЫ */
 #video-container {
     width: 100%;
     max-width: 400px;
-    aspect-ratio: 1 / 1; /* Квадрат */
+    aspect-ratio: 1 / 1; /* Оставляем идеальный квадрат */
     border-radius: 12px;
     overflow: hidden;
-    position: relative;
+    position: relative; /* Обязательно для наложения элементов поверх! */
     background: #000;
     margin-top: 20px;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.15); /* Тень */
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+    /* Убрали display: flex, он здесь вредит */
 }
 
 video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: blur(2px);
     z-index: 1;
+    /* Убрали filter: blur, чтобы камера была четкой */
 }
 
+/* ИДЕАЛЬНО ОТЦЕНТРИРОВАННАЯ ЛИНИЯ */
 .laser {
+    position: absolute; /* Возвращаем абсолютное позиционирование */
+    top: 50%;
+    left: 50%;
+    /* Вот эта магия центрирует элемент ровно посередине любого контейнера */
+    transform: translate(-50%, -50%); 
     width: 80%;
     height: 3px;
-    background-color: #ff3333; /* Чистый красный */
-    box-shadow: 0 0 15px #ff3333; /* Свечение */
+    background-color: #ff3333;
+    box-shadow: 0 0 15px #ff3333;
     z-index: 3;
     pointer-events: none;
 }
