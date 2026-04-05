@@ -1,0 +1,92 @@
+/* Переносим все стили в отдельный файл */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--tg-theme-bg-color, #f4f4f5);
+    color: var(--tg-theme-text-color, #000000);
+    margin: 0; padding: 20px;
+    display: flex; flex-direction: column; align-items: center;
+    overflow: hidden; /* Предотвращаем скролл на странице */
+}
+
+h2 { margin-top: 0; font-weight: 600; text-align: center; }
+
+/* ЭКРАН ХЕДЕРА С ЛОГОТИПОМ */
+.app-header {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    justify-content: center; /* Центрируем лого по горизонтали */
+    align-items: center;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(0,0,0,0.1); /* Легкая разделительная линия */
+}
+
+.logo-container {
+    height: 40px; /* Фиксированная высота для лого */
+}
+
+.logo-image {
+    height: 100%; /* Картинка заполняет контейнер по высоте */
+    width: auto;  /* Ширина подстраивается пропорционально */
+    object-fit: contain; /* Картинка не искажается */
+}
+
+/* СТИЛИ ЭКРАНОВ И ПЛИТОК (БЕЗ ИЗМЕНЕНИЙ) */
+.screen { display: none; width: 100%; max-width: 400px; flex-direction: column; align-items: center; }
+.screen.active { display: flex; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; width: 100%; }
+
+.tile {
+    background-color: var(--tg-theme-secondary-bg-color, #ffffff);
+    color: var(--tg-theme-text-color, #000000);
+    border-radius: 16px; padding: 25px 15px; text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: pointer; user-select: none;
+    transition: transform 0.1s ease;
+}
+.tile:active { transform: scale(0.95); }
+.tile .icon { font-size: 32px; margin-bottom: 10px; display: block; }
+.tile .title { font-size: 16px; font-weight: 500; }
+.tile.wide { grid-column: span 2; } 
+
+#video-container {
+    width: 100%;
+    max-width: 400px;
+    aspect-ratio: 1 / 1; /* Квадрат */
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+    margin-top: 20px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15); /* Тень */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(2px);
+    z-index: 1;
+}
+
+.laser {
+    width: 80%;
+    height: 3px;
+    background-color: #ff3333; /* Чистый красный */
+    box-shadow: 0 0 15px #ff3333; /* Свечение */
+    z-index: 3;
+    pointer-events: none;
+}
+
+.back-btn {
+    background-color: var(--tg-theme-button-color, #3390ec);
+    color: var(--tg-theme-button-text-color, #ffffff);
+    border: none; border-radius: 10px; padding: 12px 20px;
+    font-size: 16px; font-weight: 600; margin-bottom: 20px; width: 100%; cursor: pointer;
+}
+.back-btn:active { opacity: 0.8; }
