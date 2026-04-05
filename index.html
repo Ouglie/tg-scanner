@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WMS Терминал</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest"></script>
@@ -53,10 +53,10 @@
 <body>
 
     <div id="main-menu-screen" class="screen active">
-        <h2>Главное меню</h2>
+        <h2>WMS Терминал</h2>
         <div class="grid">
             <div class="tile wide" onclick="startScanner('verifyZO', '🚚 Подтверждение отгрузки')">
-                <span class="icon">🚚</span><span class="title">Подтверждение отгрузки</span>
+                <span class="icon">🚚</span><span class="title">Отгрузка</span>
             </div>
             <div class="tile wide" onclick="startScanner('auth', '🔐 Авторизация')">
                 <span class="icon">🔐</span><span class="title">Авторизация по QR</span>
@@ -68,16 +68,16 @@
     </div>
 
     <div id="info-menu-screen" class="screen">
-        <button class="back-btn" onclick="showScreen('main-menu-screen')">⬅️ Назад в меню</button>
-        <h2>Информация по ШК</h2>
+        <button class="back-btn" onclick="showScreen('main-menu-screen')">⬅️ Назад</button>
+        <h2>Информация</h2>
         <div class="grid">
-            <div class="tile" onclick="startScanner('bc', '📦 Скан товара')">
+            <div class="tile" onclick="startScanner('bc', '📦 Товар')">
                 <span class="icon">📦</span><span class="title">Товар</span>
             </div>
-            <div class="tile" onclick="startScanner('sn', '🏷 Скан S/N')">
-                <span class="icon">🏷</span><span class="title">Серийник</span>
+            <div class="tile" onclick="startScanner('sn', '🏷 Серийник')">
+                <span class="icon">🏷</span><span class="title">S/N</span>
             </div>
-            <div class="tile wide" onclick="startScanner('cell', '🗄 Скан ячейки')">
+            <div class="tile wide" onclick="startScanner('cell', '🗄 Ячейка')">
                 <span class="icon">🗄</span><span class="title">Ячейка</span>
             </div>
         </div>
@@ -86,11 +86,7 @@
     <div id="scanner-screen" class="screen">
         <button class="back-btn" id="scanner-back-btn">⬅️ Отмена</button>
         <h2 id="scanner-title">Сканер</h2>
-        <div id="video-container">
-            <video id="video"></video>
-            <div class="laser"></div>
-        </div>
-        <div class="hint">Наведите камеру на код</div>
+        <div id="video-container"><video id="video"></video><div class="laser"></div></div>
     </div>
 
     <script>
@@ -101,9 +97,11 @@
         let codeReader = null;
         let lastScannedCode = "";
         let matchCount = 0;
-        const REQUIRED_MATCHES = 2; 
+        let pendingCommand = "";
 
-        // Переключение экранов
+        // Инициализация Биометрии при загрузке приложения
+        tg.BiometricManager.init();
+
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
@@ -117,80 +115,97 @@
         function startScanner(cmdType, titleText) {
             showScreen('scanner-screen');
             document.getElementById('scanner-title').innerText = titleText;
-            
-            // Если это deeplink команды (auth или verifyZO), префикс не ставим, 
-            // мы добавим /start позже
-            if (cmdType === 'auth' || cmdType === 'verifyZO') {
-                currentCommandPrefix = "";
-            } else {
-                currentCommandPrefix = "/" + cmdType + " ";
-            }
-
+            currentCommandPrefix = (cmdType === 'auth' || cmdType === 'verifyZO') ? "" : "/" + cmdType + " ";
             lastScannedCode = "";
             matchCount = 0;
 
             const hints = new Map();
-            const formats = [
-                ZXing.BarcodeFormat.QR_CODE, 
-                ZXing.BarcodeFormat.CODE_128, 
-                ZXing.BarcodeFormat.CODE_39,
-                ZXing.BarcodeFormat.EAN_13
-            ];
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.CODE_128, 
+                ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.EAN_13
+            ]);
 
             codeReader = new ZXing.BrowserMultiFormatReader(hints);
-
-            codeReader.decodeFromConstraints(
-                { audio: false, video: { facingMode: "environment" } }, 
-                'video', 
-                (result, err) => {
-                    if (result) {
-                        let text = result.text;
-                        
-                        if (text === lastScannedCode) {
-                            matchCount++;
-                            if (matchCount >= REQUIRED_MATCHES) {
-                                
-                                let finalCommand = "";
-                                
-                                // --- ЛОГИКА ДЛЯ СЛОЖНЫХ QR-КОДОВ (DEEPLINKS) ---
-                                if (cmdType === 'auth' || cmdType === 'verifyZO') {
-                                    let payload = text;
-                                    
-                                    // Извлекаем нужную часть, если в QR зашита длинная ссылка t.me/.../?start=...
-                                    if (text.includes('start=')) {
-                                        payload = text.split('start=')[1].split('&')[0];
-                                    } 
-                                    // Страховка: если отсканировали чистый текст вида "verifyZO_12345"
-                                    else if (text.includes(cmdType + '_')) {
-                                        payload = text.substring(text.indexOf(cmdType + '_'));
-                                    }
-                                    
-                                    finalCommand = "/start " + payload;
-                                } 
-                                // --- ЛОГИКА ДЛЯ ПРОСТЫХ ТОВАРНЫХ ШТРИХКОДОВ ---
-                                else {
-                                    finalCommand = currentCommandPrefix + text;
-                                }
-                                
-                                stopScanner();
-                                tg.sendData(finalCommand);
-                                tg.close();
-                            }
-                        } else {
-                            lastScannedCode = text;
-                            matchCount = 0;
+            codeReader.decodeFromConstraints({ audio: false, video: { facingMode: "environment" } }, 'video', (result) => {
+                if (result) {
+                    let text = result.text;
+                    if (text === lastScannedCode) {
+                        matchCount++;
+                        if (matchCount >= 2) {
+                            processScanResult(cmdType, text);
                         }
-                    }
+                    } else { lastScannedCode = text; matchCount = 0; }
                 }
-            ).catch(err => { console.log(err); });
+            }).catch(err => console.log(err));
         }
 
-        function stopScanner() {
-            if (codeReader) {
-                codeReader.reset();
+        function processScanResult(cmdType, text) {
+            let payload = text;
+            if (cmdType === 'auth' || cmdType === 'verifyZO') {
+                if (text.includes('start=')) payload = text.split('start=')[1].split('&')[0];
+                else if (text.includes(cmdType + '_')) payload = text.substring(text.indexOf(cmdType + '_'));
+                pendingCommand = "/start " + payload;
+                
+                // Для авторизации и отгрузки запрашиваем биометрию
+                stopScanner();
+                verifyUserWithSystem();
+            } else {
+                // Для обычного поиска товаров отправляем сразу
+                pendingCommand = currentCommandPrefix + text;
+                stopScanner();
+                finishAuth();
             }
         }
+
+        // --- ЛОГИКА СИСТЕМНОЙ БИОМЕТРИИ ---
+        function verifyUserWithSystem() {
+            // Если на телефоне вообще есть поддержка биометрии
+            if (tg.BiometricManager.isBiometricAvailable) {
+                
+                // Проверяем, давал ли пользователь разрешение Телеграму использовать биометрию
+                if (!tg.BiometricManager.accessGranted) {
+                    tg.BiometricManager.requestAccess({ reason: "Для входа в WMS требуется подтверждение личности" }, (accessGranted) => {
+                        if (accessGranted) {
+                            // Разрешение получено, вызываем само системное окно
+                            callSystemAuth();
+                        } else {
+                            alert("Вы запретили доступ. Авторизация отменена.");
+                            showScreen('main-menu-screen');
+                        }
+                    });
+                } else {
+                    // Разрешение уже есть, просто вызываем системное окно
+                    callSystemAuth();
+                }
+            } else {
+                // Если телефон старый (нет датчиков) или у пользователя не задан ПИН-код на экране блокировки.
+                // В этом случае пускаем просто по факту сканирования QR. 
+                // Вы можете раскомментировать alert, чтобы запрещать им вход.
+                
+                // alert("На вашем устройстве не настроена защита экрана. Вход не безопасен.");
+                finishAuth(); 
+            }
+        }
+
+        function callSystemAuth() {
+            tg.BiometricManager.authenticate({ reason: "Подтвердите операцию" }, (success) => {
+                if (success) {
+                    // Лицо/Палец/Системный ПИН подошли!
+                    finishAuth();
+                } else {
+                    // Не узнал лицо и не ввел ПИН (отменил операцию)
+                    alert("Проверка не пройдена.");
+                    showScreen('main-menu-screen');
+                }
+            });
+        }
+
+        function finishAuth() {
+            tg.sendData(pendingCommand);
+            tg.close();
+        }
+
+        function stopScanner() { if (codeReader) codeReader.reset(); }
     </script>
 </body>
 </html>
