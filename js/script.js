@@ -1,5 +1,3 @@
-/* Переносим всю логику в отдельный файл */
-
 const tg = window.Telegram.WebApp;
 tg.expand();
 
@@ -17,7 +15,7 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.add('active');
 }
 
-// Устанавливаем обработчик для кнопки "Отмена" внутри сканера
+// Кнопка отмены внутри сканера
 const scannerBackBtn = document.getElementById('scanner-back-btn');
 if (scannerBackBtn) {
     scannerBackBtn.addEventListener('click', () => {
@@ -28,10 +26,10 @@ if (scannerBackBtn) {
 
 function startScanner(cmdType, titleText) {
     showScreen('scanner-screen');
-    const titleElement = document.getElementById('scanner-title');
-    if (titleElement) titleElement.innerText = titleText;
+    document.getElementById('scanner-title').innerText = titleText;
 
-    currentCommandPrefix = (cmdType === 'auth' || cmdType === 'verifyZO') ? "" : "/" + cmdType + " ";
+    // Добавили sign в список команд без префикса
+    currentCommandPrefix = (cmdType === 'auth' || cmdType === 'verifyZO' || cmdType === 'sign') ? "" : "/" + cmdType + " ";
     lastScannedCode = "";
     matchCount = 0;
 
@@ -43,26 +41,37 @@ function startScanner(cmdType, titleText) {
 
     codeReader = new ZXing.BrowserMultiFormatReader(hints);
     
-    // ПРОВЕРКА ДЛЯ УСТРАНЕНИЯ ОШИБКИ, ЕСЛИ ВИДЕО FEED ЕЩЕ НЕ ГОТОВ
     codeReader.decodeFromConstraints({ audio: false, video: { facingMode: "environment" } }, 'video', (result, err) => {
         if (result) {
             let text = result.text;
             if (text === lastScannedCode) {
                 matchCount++;
+                // ВТОРОЙ КАДР УСПЕШЕН - ИДЕМ ДАЛЬШЕ
                 if (matchCount >= 2) {
                     processScanResult(cmdType, text);
                 }
-            } else { lastScannedCode = text; matchCount = 0; }
+            } else { 
+                // ПЕРВЫЙ КАДР - АНИМАЦИЯ
+                lastScannedCode = text; 
+                matchCount = 0; 
+                
+                const viewfinder = document.getElementById('viewfinder');
+                viewfinder.classList.add('found');
+                
+                // Если код потерялся, возвращаем рамку обратно
+                setTimeout(() => {
+                    if (matchCount < 2 && viewfinder) {
+                        viewfinder.classList.remove('found');
+                    }
+                }, 400);
+            }
         }
         if (err && !(err instanceof ZXing.NotFoundException)) {
-            // ZXing часто кидает NotFoundException, это нормально, пока код не найден.
-            // Нам важны только другие ошибки (например, доступ к камере).
             console.error(err);
         }
     }).catch(err => {
-        // Ловим ошибку доступа к камере на iOS
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-             alert("Mini App не имеет доступа к камере. Разрешите доступ в настройках Telegram.");
+             alert("Разрешите доступ к камере в настройках.");
         } else {
              console.log("Ошибка камеры: " + err);
         }
@@ -71,7 +80,8 @@ function startScanner(cmdType, titleText) {
 
 function processScanResult(cmdType, text) {
     let payload = text;
-    if (cmdType === 'auth' || cmdType === 'verifyZO') {
+    // Добавили sign в логику парсинга QR ссылок
+    if (cmdType === 'auth' || cmdType === 'verifyZO' || cmdType === 'sign') {
         if (text.includes('start=')) payload = text.split('start=')[1].split('&')[0];
         else if (text.includes(cmdType + '_')) payload = text.substring(text.indexOf(cmdType + '_'));
         pendingCommand = "/start " + payload;
@@ -88,9 +98,9 @@ function processScanResult(cmdType, text) {
 function verifyUserWithSystem() {
     if (tg.BiometricManager.isBiometricAvailable) {
         if (!tg.BiometricManager.accessGranted) {
-            tg.BiometricManager.requestAccess({ reason: "Для входа в WMS требуется подтверждение личности" }, (accessGranted) => {
+            tg.BiometricManager.requestAccess({ reason: "Для выполнения операции требуется подтверждение" }, (accessGranted) => {
                 if (accessGranted) { callSystemAuth(); } else {
-                    alert("Вы запретили доступ. Авторизация отменена.");
+                    alert("Вы запретили доступ. Операция отменена.");
                     showScreen('main-menu-screen');
                 }
             });
@@ -112,4 +122,9 @@ function finishAuth() {
     tg.close();
 }
 
-function stopScanner() { if (codeReader) codeReader.reset(); }
+function stopScanner() { 
+    if (codeReader) codeReader.reset(); 
+    // Сбрасываем анимацию рамки при выходе
+    const viewfinder = document.getElementById('viewfinder');
+    if (viewfinder) viewfinder.classList.remove('found');
+}

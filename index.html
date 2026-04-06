@@ -18,23 +18,22 @@
     </header>
 
     <div id="main-menu-screen" class="screen active">
-        <h2>ГЛАВНОЕ МЕНЮ</h2>
         <div class="grid">
             <div class="tile wide" onclick="startScanner('verifyZO', '🚚 Подтверждение отгрузки')">
-                <span class="icon">🚚</span><span class="title">Подтверждение отгрузки</span>
+                <span class="icon">🚚</span><span class="title">Отгрузка</span>
             </div>
+            
             <div class="tile wide" onclick="startScanner('auth', '🔐 Авторизация')">
                 <span class="icon">🔐</span><span class="title">Авторизация по QR</span>
             </div>
             <div class="tile wide" onclick="showScreen('info-menu-screen')">
-                <span class="icon">ℹ️</span><span class="title">Информация по ШК</span>
+                <span class="icon">ℹ️</span><span class="title">Информация</span>
             </div>
         </div>
     </div>
 
     <div id="info-menu-screen" class="screen">
         <button class="back-btn" onclick="showScreen('main-menu-screen')">⬅️ Назад в меню</button>
-        <h2>Информация</h2>
         <div class="grid">
             <div class="tile" onclick="startScanner('bc', '📦 Товар')">
                 <span class="icon">📦</span><span class="title">Товар</span>
@@ -53,7 +52,7 @@
         <h2 id="scanner-title">Сканер</h2>
         <div id="video-container">
             <video id="video"></video>
-            <div class="laser"></div>
+            <div id="viewfinder" class="viewfinder"></div>
         </div>
         <div class="hint">Наведите камеру на штрихкод</div>
     </div>
