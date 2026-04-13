@@ -80,17 +80,24 @@ function startScanner(cmdType, titleText) {
 
 function processScanResult(cmdType, text) {
     let payload = text;
-    // Добавили sign в логику парсинга QR ссылок
+    
+    // 1. Вытаскиваем нужный кусок из QR-кода (если это сложная ссылка)
     if (cmdType === 'auth' || cmdType === 'verifyZO' || cmdType === 'sign') {
         if (text.includes('start=')) payload = text.split('start=')[1].split('&')[0];
         else if (text.includes(cmdType + '_')) payload = text.substring(text.indexOf(cmdType + '_'));
         pendingCommand = "/start " + payload;
-        
-        stopScanner();
-        verifyUserWithSystem();
     } else {
         pendingCommand = currentCommandPrefix + text;
-        stopScanner();
+    }
+    
+    stopScanner();
+
+    // 2. Решаем, нужна ли биометрия перед отправкой
+    if (cmdType === 'auth' || cmdType === 'sign') {
+        // Биометрия НУЖНА только для входа и подписания
+        verifyUserWithSystem();
+    } else {
+        // Для Отгрузки (verifyZO), товаров и ячеек отправляем сразу!
         finishAuth();
     }
 }
